@@ -1,0 +1,4 @@
+-- User hook template for Saved Games/DCS/Scripts/Export.lua
+-- Add this line to your existing Export.lua (do not replace other exporters):
+
+dofile(lfs.writedir() .. "Scripts/DcsMissileAdvisor/Export.lua")
