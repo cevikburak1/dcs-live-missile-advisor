@@ -2,7 +2,7 @@
   {
     "aircraftName": "F/A-18C Hornet",
     "aliases": ["F/A-18C", "F/A-18C_hornet", "FA-18C", "Hornet", "F-18C"],
-    "supportedMissileAliases": ["AIM-120C", "AIM-120B", "AIM-7M", "AIM-9X", "AIM-9M"],
+    "supportedMissileAliases": ["AIM-120C", "AIM-120B", "AIM-7M", "AIM-7P", "AIM-9X", "AIM-9M"],
     "radarType": "AN/APG-73",
     "hasBvrRadar": true,
     "hasHmd": true,

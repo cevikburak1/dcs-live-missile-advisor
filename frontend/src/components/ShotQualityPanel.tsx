@@ -44,7 +44,7 @@ export function ShotQualityPanel({ shotQuality }: Props) {
       <div className="mt-4 flex items-center gap-6">
         <div className="text-center">
           <div className="text-4xl font-bold font-mono text-cyan-300">
-            {pk !== undefined ? `${pk.toFixed(1)}%` : "—"}
+            {pk != null ? `${pk.toFixed(1)}%` : "—"}
           </div>
           <div className="text-xs text-slate-400 uppercase tracking-wide">
             Est. PK

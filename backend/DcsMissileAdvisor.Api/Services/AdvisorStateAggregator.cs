@@ -50,14 +50,16 @@ public class AdvisorStateAggregator
 
         var perm = packet.Perm ?? new DcsPermRaw();
         var aircraftProfile = _aircraftDetection.Resolve(packet.Self?.Name, packet.Self?.UnitName);
-        var (weaponRaw, missileProfile, station) = _weaponDetection.Detect(packet.Payload);
+        var (weaponRaw, missileProfile, station) = _weaponDetection.Detect(packet.Payload, packet.WeaponSelectedName);
 
         var aircraftState = BuildAircraftState(packet, perm, aircraftProfile, weaponRaw, missileProfile, station);
         var targetState = _targetLockDetection.Build(
             perm,
             packet.TargetsLocked,
             packet.TargetsInfo,
-            packet.Tws);
+            packet.Tws,
+            packet.CockpitTarget,
+            packet.TargetApiAvailable);
 
         var shotQuality = _shotQuality.Calculate(aircraftState, targetState, missileProfile, aircraftProfile);
 
@@ -103,7 +105,7 @@ public class AdvisorStateAggregator
         state.OwnMach = packet.Flight?.Mach;
         state.OwnAirspeedKnots = UnitConversion.MpsToKnotsNullable(packet.Flight?.IasMps);
         state.OwnTrueAirspeedKnots = UnitConversion.MpsToKnotsNullable(packet.Flight?.TasMps);
-        state.OwnAltitudeFt = UnitConversion.MetersToFeetNullable(packet.Flight?.AltMslM);
+        state.OwnAltitudeFt = UnitConversion.MetersToFeetNullable(packet.Flight?.AltMslM ?? packet.Self?.AltMslM);
         state.OwnHeadingDeg = UnitConversion.RadToDegNullable(packet.Self?.HeadingRad);
 
         if (packet.Flight?.Vel is not null)

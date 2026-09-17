@@ -26,6 +26,7 @@ public class VelocityVector
 
 public class TargetState
 {
+    public string? DataSource { get; set; }
     public bool IsLocked { get; set; }
     public bool SensorExportAvailable { get; set; }
     public string? StatusMessage { get; set; }
@@ -36,7 +37,7 @@ public class TargetState
     public double? TargetAspectDeg { get; set; }
     public TargetAspectCategory TargetAspectCategory { get; set; } = TargetAspectCategory.Unknown;
     public double? TargetCourseDeg { get; set; }
-    public bool TargetIsJamming { get; set; }
+    public bool? TargetIsJamming { get; set; }
     public TrackingMode TrackingMode { get; set; } = TrackingMode.Unknown;
 }
 

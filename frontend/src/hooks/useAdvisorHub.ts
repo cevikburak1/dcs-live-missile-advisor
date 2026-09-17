@@ -24,6 +24,7 @@ export function useAdvisorHub() {
 
   useEffect(() => {
     refreshSnapshot();
+    const statusPoll = window.setInterval(refreshSnapshot, 2000);
 
     const connection = new signalR.HubConnectionBuilder()
       .withUrl(HUB_URL)
@@ -44,6 +45,7 @@ export function useAdvisorHub() {
       .catch(() => setHubStatus("disconnected"));
 
     return () => {
+      window.clearInterval(statusPoll);
       connection.stop();
     };
   }, [refreshSnapshot]);

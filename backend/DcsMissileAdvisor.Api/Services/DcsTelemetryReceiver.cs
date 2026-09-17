@@ -6,6 +6,7 @@ namespace DcsMissileAdvisor.Api.Services;
 
 public class DcsTelemetryState
 {
+    public JsonElement? RawPacket { get; set; }
     public DcsRawPacket? LastPacket { get; set; }
     public DateTime LastReceivedUtc { get; set; }
     public long LastSeq { get; set; }
@@ -75,10 +76,12 @@ public class DcsTelemetryReceiver : BackgroundService
         try
         {
             var json = System.Text.Encoding.UTF8.GetString(buffer);
+            using var document = JsonDocument.Parse(json);
             var packet = JsonSerializer.Deserialize<DcsRawPacket>(json, JsonOptions);
             if (packet is null) return;
 
             _state.LastPacket = packet;
+            _state.RawPacket = document.RootElement.Clone();
             _state.LastReceivedUtc = DateTime.UtcNow;
             _state.LastSeq = packet.Seq;
 

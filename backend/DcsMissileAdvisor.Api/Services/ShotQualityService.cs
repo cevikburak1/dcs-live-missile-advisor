@@ -18,8 +18,9 @@ public class ShotQualityService
         if (missile is null)
         {
             result.CanCalculate = false;
-            result.Explanation = "Missile profile not found";
-            result.MissingDataFields.Add("missileProfile");
+            var noSelection = string.IsNullOrWhiteSpace(aircraft.SelectedWeaponRawName);
+            result.Explanation = noSelection ? "Selected weapon not reported by DCS" : "Missile profile not found";
+            result.MissingDataFields.Add(noSelection ? "selectedWeapon" : "missileProfile");
             return result;
         }
 
@@ -34,7 +35,7 @@ public class ShotQualityService
         if (!target.IsLocked)
         {
             result.CanCalculate = false;
-            result.Explanation = "No target locked";
+            result.Explanation = target.StatusMessage ?? "No target lock reported by DCS";
             result.MissingDataFields.Add("targetLock");
             return result;
         }
@@ -65,7 +66,7 @@ public class ShotQualityService
 
         modifiers.Add(("mach", MachModifier(ownMach)));
 
-        if (target.TargetIsJamming && missile.ChaffSensitivity > 0)
+        if (target.TargetIsJamming == true && missile.ChaffSensitivity > 0)
             modifiers.Add(("ECM", 1.0 - missile.ChaffSensitivity * 0.5));
 
         if (missile.NeedsRadarSupport && aircraftProfile is { HasBvrRadar: false })
@@ -92,7 +93,7 @@ public class ShotQualityService
             explanations.Add("Inside minimum range");
         if (range > missile.NoEscapeRangeNm && range <= missile.MaxEffectiveRangeNm)
             explanations.Add("Outside NEZ");
-        if (target.TargetIsJamming)
+        if (target.TargetIsJamming == true)
             explanations.Add("ECM active");
         if (aspect == TargetAspectCategory.Beaming)
             explanations.Add("Target beaming");
@@ -128,6 +129,8 @@ public class ShotQualityService
 
         if (missile.NeedsRadarSupport)
         {
+            if (target.TrackingMode is not (TrackingMode.RadarLock or TrackingMode.RadarTrack or TrackingMode.TWS))
+                missing.Add("radarTrackMode");
             if (aircraftProfile is null) missing.Add("aircraftProfile");
             else if (!aircraftProfile.HasBvrRadar) missing.Add("bvrRadar");
         }
@@ -221,7 +224,7 @@ public class ShotQualityService
         if (rangeNm < missile.MinimumRangeNm) return ShotRecommendation.Abort;
         if (rangeNm > missile.MaxEffectiveRangeNm) return ShotRecommendation.Wait;
 
-        if (target.TargetIsJamming && missile.ChaffSensitivity > 0.5)
+        if (target.TargetIsJamming == true && missile.ChaffSensitivity > 0.5)
             return ShotRecommendation.Wait;
 
         if (IsInfrared(missile.MissileType) && aspect == TargetAspectCategory.Cold)

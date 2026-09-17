@@ -2,6 +2,7 @@
 node_modules/
 
 # Build outputs
+.artifacts/
 dist/
 bin/
 obj/

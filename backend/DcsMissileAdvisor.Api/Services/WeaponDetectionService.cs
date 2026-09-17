@@ -11,23 +11,19 @@ public class WeaponDetectionService
         _resolver = resolver;
     }
 
-    public (string? RawName, MissileProfile? Profile, int? Station) Detect(DcsPayloadRaw? payload)
+    public (string? RawName, MissileProfile? Profile, int? Station) Detect(
+        DcsPayloadRaw? payload, string? selectedWeaponName = null)
     {
-        if (payload is null)
-            return (null, null, null);
-
-        var stationIdx = payload.CurrentStation;
-        if (stationIdx is null or 0)
-            return (null, null, stationIdx);
+        var stationIdx = payload?.CurrentStation is > 0 ? payload.CurrentStation : null;
 
         DcsStationRaw? selected = null;
-        if (payload.Stations is not null)
+        if (stationIdx.HasValue && payload?.Stations is not null)
         {
             selected = payload.Stations.FirstOrDefault(s => s.Idx == stationIdx);
         }
 
         if (selected is null)
-            return (null, null, stationIdx);
+            return (selectedWeaponName, _resolver.Resolve(selectedWeaponName, null), stationIdx);
 
         var rawName = selected.Name;
         if (string.IsNullOrWhiteSpace(rawName) && selected.Type is { Count: >= 4 })

@@ -12,7 +12,7 @@ function fmt(value?: number, digits = 1, suffix = "") {
 export function TargetPanel({ target }: Props) {
   const statusText =
     target.statusMessage ??
-    (target.isLocked ? "Target locked" : "No target locked");
+    (target.isLocked ? "Target locked" : "Waiting for target telemetry");
 
   return (
     <div className="rounded-lg border border-slate-700 bg-slate-900/80 p-4">
@@ -27,6 +27,7 @@ export function TargetPanel({ target }: Props) {
         {statusText}
       </p>
       <dl className="mt-3 space-y-2 font-mono text-sm">
+        <Row label="Source" value={target.dataSource ?? "Unknown"} />
         <Row label="Range" value={fmt(target.targetRangeNm, 1, " nm")} />
         <Row label="Altitude" value={fmt(target.targetAltitudeFt, 0, " ft")} />
         <Row label="Mach" value={fmt(target.targetMach, 2)} />
@@ -39,8 +40,8 @@ export function TargetPanel({ target }: Props) {
         <Row label="Course" value={fmt(target.targetCourseDeg, 0, "°")} />
         <Row
           label="Jamming"
-          value={target.targetIsJamming ? "YES" : "NO"}
-          warn={target.targetIsJamming}
+          value={target.targetIsJamming == null ? "Unknown" : target.targetIsJamming ? "YES" : "NO"}
+          warn={target.targetIsJamming === true}
         />
         <Row label="Track Mode" value={target.trackingMode} />
       </dl>

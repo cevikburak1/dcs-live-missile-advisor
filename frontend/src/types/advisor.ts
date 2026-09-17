@@ -81,6 +81,7 @@ export interface AircraftState {
 }
 
 export interface TargetState {
+  dataSource?: string | null;
   isLocked: boolean;
   sensorExportAvailable: boolean;
   statusMessage?: string;
@@ -91,7 +92,7 @@ export interface TargetState {
   targetAspectDeg?: number;
   targetAspectCategory: TargetAspectCategory;
   targetCourseDeg?: number;
-  targetIsJamming: boolean;
+  targetIsJamming: boolean | null;
   trackingMode: TrackingMode;
 }
 

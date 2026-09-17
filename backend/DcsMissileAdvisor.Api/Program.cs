@@ -12,6 +12,11 @@ builder.Services.AddSignalR()
         options.PayloadSerializerOptions.Converters.Add(new JsonStringEnumConverter());
     });
 
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+});
+
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -23,11 +28,17 @@ builder.Services.AddCors(options =>
     });
 });
 
-var profilesDir = Path.Combine(builder.Environment.ContentRootPath, "profiles");
-if (!Directory.Exists(profilesDir))
+var profileDirCandidates = new[]
 {
-    profilesDir = Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", "profiles"));
-}
+    Path.Combine(builder.Environment.ContentRootPath, "profiles"),
+    Path.GetFullPath(Path.Combine(builder.Environment.ContentRootPath, "..", "..", "profiles")),
+    Path.Combine(AppContext.BaseDirectory, "profiles")
+};
+
+var profilesDir = profileDirCandidates.FirstOrDefault(path =>
+    File.Exists(Path.Combine(path, "missile_profiles.json")) &&
+    File.Exists(Path.Combine(path, "aircraft_profiles.json")))
+    ?? profileDirCandidates[0];
 
 var profileLoader = new ProfileLoader();
 profileLoader.Load(profilesDir);
@@ -59,6 +70,17 @@ app.MapGet("/api/snapshot", (
     var packet = receiver.GetState().LastPacket;
     var status = receiver.GetConnectionStatus();
     return Results.Ok(aggregator.BuildSnapshot(packet, status));
+});
+
+app.MapGet("/api/telemetry", (DcsTelemetryReceiver receiver) =>
+{
+    var state = receiver.GetState();
+    return Results.Ok(new
+    {
+        connectionStatus = receiver.GetConnectionStatus(),
+        lastReceivedUtc = state.LastPacket is null ? (DateTime?)null : state.LastReceivedUtc,
+        packet = state.RawPacket
+    });
 });
 
 app.MapHub<AdvisorHub>("/hubs/advisor");

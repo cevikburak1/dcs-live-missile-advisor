@@ -14,7 +14,9 @@ public class TargetLockDetectionService
         DcsPermRaw? perm,
         List<DcsTargetRaw>? targetsLocked,
         List<DcsTargetRaw>? targetsInfo,
-        DcsTwsRaw? tws)
+        DcsTwsRaw? tws,
+        DcsTargetRaw? cockpitTarget = null,
+        bool? targetApiAvailable = null)
     {
         var state = new TargetState
         {
@@ -29,18 +31,27 @@ public class TargetLockDetectionService
             return state;
         }
 
-        var target = PickBestTarget(targetsLocked) ?? PickBestTarget(targetsInfo);
+        var target = PickBestTarget(targetsLocked)
+            ?? PickBestTarget(targetsInfo?.Where(HasLockFlag).ToList());
+        if (target is not null)
+            state.DataSource = "DCS sensor export";
+        else if (cockpitTarget is { DistanceM: > 0 } && perm?.Ownship == true)
+        {
+            target = cockpitTarget;
+            state.DataSource = cockpitTarget.Source;
+            state.StatusMessage = "Target track reported by cockpit; radar lock mode unverified";
+        }
 
         if (target is null)
         {
             state.IsLocked = false;
-            state.StatusMessage = "No target locked";
-            state.TrackingMode = InferTrackingModeFromTws(tws);
+            state.StatusMessage = targetApiAvailable == false
+                ? "Target lock data not exported by this module"
+                : "No target lock reported by DCS; module export may be limited";
             return state;
         }
 
         state.IsLocked = true;
-        state.StatusMessage = null;
         state.TargetRangeNm = UnitConversion.MetersToNmNullable(target.DistanceM);
         state.TargetMach = target.Mach;
 
@@ -52,10 +63,11 @@ public class TargetLockDetectionService
         state.TargetAspectCategory = CategorizeAspect(state.TargetAspectDeg);
         state.TargetCourseDeg = UnitConversion.RadToDegNullable(target.CourseRad);
 
-        state.TargetIsJamming = target.IsJamming == true
-            || (target.Flags.HasValue && (target.Flags.Value & WhTargetLockOnJammer) != 0);
+        state.TargetIsJamming = target.IsJamming
+            ?? (target.Flags.HasValue ? (target.Flags.Value & WhTargetLockOnJammer) != 0 : null);
 
-        state.TrackingMode = InferTrackingMode(target.Flags) ?? InferTrackingModeFromTws(tws);
+        // LoGetTWSInfo is the threat warning system (RWR), not our radar track mode.
+        state.TrackingMode = InferTrackingMode(target.Flags) ?? TrackingMode.Unknown;
 
         return state;
     }
@@ -67,9 +79,11 @@ public class TargetLockDetectionService
 
         return targets
             .Where(t => t.DistanceM.HasValue || (t.Id.HasValue && t.Id.Value != 0))
-            .OrderByDescending(t => t.DistanceM ?? 0)
             .FirstOrDefault();
     }
+
+    private static bool HasLockFlag(DcsTargetRaw target) =>
+        target.Flags.HasValue && (target.Flags.Value & (WhTargetRadarLock | WhTargetEosLock)) != 0;
 
     private static TargetAspectCategory CategorizeAspect(double? aspectDeg)
     {
@@ -80,8 +94,8 @@ public class TargetLockDetectionService
         if (abs > 180) abs = 360 - abs;
 
         if (abs < 45) return TargetAspectCategory.Hot;
+        if (abs >= 75 && abs <= 105) return TargetAspectCategory.Beaming;
         if (abs < 135) return TargetAspectCategory.Flanking;
-        if (abs < 165) return TargetAspectCategory.Beaming;
         return TargetAspectCategory.Cold;
     }
 
@@ -97,14 +111,4 @@ public class TargetLockDetectionService
         return null;
     }
 
-    private static TrackingMode InferTrackingModeFromTws(DcsTwsRaw? tws)
-    {
-        if (tws?.Emitters is null || tws.Emitters.Count == 0)
-            return TrackingMode.Unknown;
-
-        var hasTrack = tws.Emitters.Any(e =>
-            e.Signal is "track_while_scan" or "lock");
-
-        return hasTrack ? TrackingMode.TWS : TrackingMode.Unknown;
-    }
 }

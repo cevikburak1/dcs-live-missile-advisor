@@ -65,6 +65,7 @@ Required files:
 
 - `Export.lua`
 - `json.lua`
+- `Hornet.lua`
 
 **Hook Export.lua** — edit or create `Saved Games/DCS/Scripts/Export.lua`:
 
@@ -89,6 +90,7 @@ Runs at `http://localhost:5000`.
 |----------|-------------|
 | `GET /api/health` | Health check |
 | `GET /api/snapshot` | Current advisor state |
+| `GET /api/telemetry` | Last original UDP packet and receive time for local diagnosis |
 | `GET /api/profiles/missiles` | Loaded missile profiles |
 | `GET /api/profiles/aircraft` | Loaded aircraft profiles |
 | `WS /hubs/advisor` | SignalR hub (`AdvisorUpdate` events) |
@@ -126,7 +128,8 @@ The UI shows:
 
 | Message | Meaning |
 |---------|---------|
-| **No target locked** | Sensor export works but no locked target in telemetry |
+| **No target lock reported by DCS** | No lock in the exported packet; this does not prove there is no cockpit lock |
+| **Selected weapon not reported by DCS** | No selected station or unambiguous selected-weapon indication |
 | **Missile profile not found** | Weapon detected; add an alias in `missile_profiles.json` |
 | **Target lock export unavailable in this mission/server** | Sensor export disabled or API returned nothing |
 | **Ownship export unavailable** | Ownship export disabled on server |
@@ -212,6 +215,49 @@ DCS servers expose three export tiers:
 - Many **public servers** disable player export → no ownship or target data.
 - **F/A-18C and F-16C:** `LoGetLockedTargetInformation` is often `nil` even in single-player. This is an FC3-era API limitation, not a bug in this tool. Su-27, F-15C, and similar modules tend to work better for target lock export.
 - This advisor **never** uses `LoGetWorldObjects` or hidden global object positions.
+
+### Hornet fallback and diagnostics
+
+The Hornet adapter reads the HUD's named `AA_Weapon_type` field when DCS reports
+`CurrentStation=0`. An `SP` label is matched to a loaded Sparrow variant only when
+that variant is unique. It does not pick the first missile in the stores inventory.
+
+When the standard locked-target export is empty, visible Hornet A/A HUD range and
+closure can populate the target panel. A/A radar main-track Mach and altitude are
+included when their named DDI fields are available. Waypoint ranges, FLOOD,
+uncertain ranges and memory tracks are not treated as live ranged locks. Both
+ownship and sensor permissions are required for the cockpit target fallback.
+
+The panel identifies this source as `Hornet HUD/DDI`. A HUD track alone cannot
+prove radar STT or provide target aspect. Missing values remain unknown and block
+PK calculation when required. The DDI launch-envelope aspect cue is not a measured
+target aspect, and `LoGetTWSInfo` is an RWR feed, not our radar's TWS mode.
+
+The AIM-7P has its own profile. Its initial range/sensitivity values reuse the
+existing AIM-7M heuristic baseline; they are not measured AIM-7P performance.
+
+After updating the Lua files, reload the mission (restart DCS if necessary).
+`Saved Games/DCS/Logs/dcs.log` should contain `DcsMissileAdvisor` and
+`Export 1.1 started`. Visit `http://localhost:5000/api/telemetry` to inspect
+`packet.export_version`, `payload.current_station`, `payload.stations`,
+`targets_locked`, `target_api_available` and `cockpit_diagnostics`.
+No packets during a paused/stopped mission means Disconnected or Stale, not a
+missing missile profile. The dashboard polls connection freshness every two seconds.
+
+### Regression checks
+
+Run from the repository root, with a Lua 5.1-compatible interpreter (`luae.exe`
+in the DCS `bin` directory also works):
+
+```powershell
+New-Item -ItemType Directory -Force .artifacts | Out-Null
+lua dcs-export/tests/export_test.lua
+dotnet run --project backend/DcsMissileAdvisor.Tests -- .
+```
+
+The Lua checks create `.artifacts/export-fixture.json` using the real exporter.
+The backend checks consume that fixture to verify parsing, units, selection and
+target/permission handling. These offline fixtures are never sent to the live panel.
 
 ---
 

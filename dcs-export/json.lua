@@ -30,7 +30,9 @@ function json.encode(val)
     if val ~= val or val == math.huge or val == -math.huge then
       return "null"
     end
-    return string.format("%.6g", val)
+    -- DCS object IDs must stay exact integers; exponent notation cannot decode as Int64.
+    if val % 1 == 0 then return string.format("%.0f", val) end
+    return string.format("%.17g", val)
   elseif t == "string" then
     return '"' .. escape_str(val) .. '"'
   elseif t == "table" then

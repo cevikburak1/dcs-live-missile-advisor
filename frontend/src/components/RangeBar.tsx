@@ -25,7 +25,7 @@ export function RangeBar({ profile, currentRangeNm }: Props) {
 
   const pct = (nm: number) => ((nm - min) / span) * 100;
   const currentPct =
-    currentRangeNm !== undefined
+    currentRangeNm != null
       ? Math.min(100, Math.max(0, pct(currentRangeNm)))
       : null;
 
@@ -34,6 +34,9 @@ export function RangeBar({ profile, currentRangeNm }: Props) {
       <h2 className="text-xs font-semibold uppercase tracking-widest text-cyan-500">
         Range Envelope — {profile.missileName}
       </h2>
+      {profile.notes && (
+        <p className="mt-2 text-xs text-slate-400">{profile.notes}</p>
+      )}
 
       <div className="relative mt-6 h-8 rounded bg-slate-800 overflow-hidden">
         <div
@@ -80,7 +83,7 @@ export function RangeBar({ profile, currentRangeNm }: Props) {
         <Legend label="MAX" value={`${profile.maxEffectiveRangeNm} nm`} />
       </div>
 
-      {currentRangeNm !== undefined && (
+      {currentRangeNm != null && (
         <p className="mt-2 font-mono text-sm text-cyan-300">
           Current range: {currentRangeNm.toFixed(1)} nm
         </p>

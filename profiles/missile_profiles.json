@@ -54,6 +54,24 @@
     "notes": "SARH missile requiring continuous radar illumination."
   },
   {
+    "missileName": "AIM-7P Sparrow",
+    "aliases": ["AIM-7P", "AIM-7P Sparrow", "AIM_7P", "AIM7P"],
+    "missileType": "Fox1",
+    "minimumRangeNm": 1.5,
+    "idealRangeNm": 15.0,
+    "noEscapeRangeNm": 6.0,
+    "maxEffectiveRangeNm": 25.0,
+    "needsRadarSupport": true,
+    "supportsPitbull": false,
+    "highOffBoresight": false,
+    "chaffSensitivity": 0.75,
+    "flareSensitivity": 0.0,
+    "aspectSensitivity": 0.7,
+    "altitudeSensitivity": 0.4,
+    "closureSensitivity": 0.6,
+    "notes": "SARH Sparrow. Uses the existing AIM-7M heuristic envelope as a provisional baseline, not measured AIM-7P performance. Requires continuous radar support."
+  },
+  {
     "missileName": "AIM-9M Sidewinder",
     "aliases": ["AIM-9M", "AIM-9M Sidewinder", "AIM_9M", "AIM-9"],
     "missileType": "InfraredWvr",

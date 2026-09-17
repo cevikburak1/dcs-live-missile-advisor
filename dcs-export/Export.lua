@@ -10,6 +10,25 @@ local socket = nil
 local udp = nil
 local seq = 0
 local json = nil
+local hornet = nil
+local previous = {
+  start = LuaExportStart, stop = LuaExportStop,
+  frame = LuaExportAfterNextFrame, activity = LuaExportActivityNextEvent
+}
+local next_send = 0
+local previous_next = 0
+local logged_errors = {}
+
+local function report(message)
+  if log and log.write then log.write("DcsMissileAdvisor", log.INFO, message) end
+end
+
+local function report_once(message)
+  if not logged_errors[message] then
+    logged_errors[message] = true
+    report(message)
+  end
+end
 
 local WH_TARGET_RADAR_LOCK = 0x0008
 local WH_TARGET_RADAR_TRACK = 0x0020
@@ -20,7 +39,12 @@ local WH_TARGET_LOCK_ON_JAMMER = 0x0800
 local function band(a, b)
   if bit then return bit.band(a, b) end
   if bit32 then return bit32.band(a, b) end
-  return 0
+  local result, place = 0, 1
+  while a > 0 and b > 0 do
+    if a % 2 == 1 and b % 2 == 1 then result = result + place end
+    a, b, place = math.floor(a / 2), math.floor(b / 2), place * 2
+  end
+  return result
 end
 
 local function safe_call(fn, ...)
@@ -32,7 +56,7 @@ end
 
 local function safe_number(v)
   if v == nil or type(v) ~= "number" then return nil end
-  if v ~= v then return nil end
+  if v ~= v or v == math.huge or v == -math.huge then return nil end
   return v
 end
 
@@ -62,9 +86,9 @@ local function type_tuple(t)
 end
 
 local function normalize_target_entry(entry)
-  if not entry then return nil end
+  if type(entry) ~= "table" then return nil end
   local t = entry.target or entry
-  if not t then return nil end
+  if type(t) ~= "table" then return nil end
 
   local pos_y = nil
   if t.position and t.position.p then
@@ -102,17 +126,16 @@ end
 
 local function collect_targets(fn)
   local raw = safe_call(fn)
-  if not raw then return {} end
+  if type(raw) ~= "table" then return {}, false end
   local out = {}
-  if type(raw) == "table" then
-    for _, entry in pairs(raw) do
+  if raw.ID or raw.id or raw.target or raw.distance then raw = { raw } end
+  for _, entry in pairs(raw) do
       local norm = normalize_target_entry(entry)
       if norm and (norm.distance_m ~= nil or norm.id ~= nil) then
         out[#out + 1] = norm
       end
-    end
   end
-  return out
+  return out, true
 end
 
 local function build_payload_info()
@@ -133,7 +156,7 @@ local function build_payload_info()
           count = safe_number(st.count),
           type = wt,
           name = name,
-          container = st.container
+          container = type(st.container) == "boolean" and st.container or nil
         }
       end
     end
@@ -206,7 +229,8 @@ local function build_packet()
         name = self_data.Name,
         unit_name = self_data.UnitName,
         type = type_tuple(self_data.Type),
-        heading_rad = safe_number(self_data.Heading)
+        heading_rad = safe_number(self_data.Heading),
+        alt_msl_m = self_data.LatLongAlt and safe_number(self_data.LatLongAlt.Alt)
       }
     end
 
@@ -223,10 +247,19 @@ local function build_packet()
   end
 
   if perm_sensor then
-    packet.targets_locked = collect_targets(LoGetLockedTargetInformation)
+    packet.targets_locked, packet.target_api_available = collect_targets(LoGetLockedTargetInformation)
     packet.targets_info = collect_targets(LoGetTargetInformation)
     packet.tws = build_tws_info()
   end
+
+  if perm_ownship and hornet and packet.self and packet.self.name == "FA-18C_hornet" then
+    local cockpit = hornet.collect(function(id) return safe_call(list_indication, id) end,
+      packet.payload, perm_sensor)
+    packet.weapon_selected_name = cockpit.weapon_selected_name
+    packet.cockpit_target = cockpit.target
+    packet.cockpit_diagnostics = cockpit.diagnostics
+  end
+  packet.export_version = "1.1"
 
   return packet
 end
@@ -234,12 +267,16 @@ end
 local function send_packet()
   if not udp or not json then return end
   local ok, packet = pcall(build_packet)
-  if not ok or not packet then return end
-  local msg = json.encode(packet)
-  pcall(function() udp:send(msg) end)
+  if not ok then report_once("Packet collection failed: " .. tostring(packet)); return end
+  local encoded, msg = pcall(json.encode, packet)
+  if not encoded then report_once("JSON encoding failed: " .. tostring(msg)); return end
+  local sent, err = udp:send(msg)
+  if not sent then report_once("UDP send failed: " .. tostring(err)) end
 end
 
 function LuaExportStart()
+  safe_call(previous.start)
+  seq, next_send, previous_next, logged_errors = 0, 0, 0, {}
   package.path = package.path .. ";.\\LuaSocket\\?.lua"
   package.cpath = package.cpath .. ";.\\LuaSocket\\?.dll"
 
@@ -247,15 +284,19 @@ function LuaExportStart()
   package.path = package.path .. ";" .. script_dir .. "?.lua"
 
   local ok, sock = pcall(require, "socket")
-  if not ok then return end
+  if not ok then report("LuaSocket load failed: " .. tostring(sock)); return end
   socket = sock
 
-  local ok_json, j = pcall(require, "json")
-  if ok_json then json = j end
+  local ok_json, j = pcall(dofile, script_dir .. "json.lua")
+  if not ok_json then report("JSON load failed: " .. tostring(j)); return end
+  json = j
+  local ok_hornet, h = pcall(dofile, script_dir .. "Hornet.lua")
+  if ok_hornet then hornet = h else report("Hornet adapter load failed: " .. tostring(h)) end
 
   udp = socket.udp()
   udp:settimeout(0)
   udp:setpeername(UDP_HOST, UDP_PORT)
+  report("Export 1.1 started: " .. UDP_HOST .. ":" .. UDP_PORT)
 end
 
 function LuaExportStop()
@@ -263,13 +304,21 @@ function LuaExportStop()
     pcall(function() udp:close() end)
     udp = nil
   end
+  safe_call(previous.stop)
 end
 
 function LuaExportAfterNextFrame()
-  -- unused; rate limited via ActivityNextEvent
+  safe_call(previous.frame)
 end
 
 function LuaExportActivityNextEvent(t)
-  send_packet()
-  return t + TICK_INTERVAL
+  if t >= next_send then
+    send_packet()
+    next_send = t + TICK_INTERVAL
+  end
+  if previous.activity and previous_next and t >= previous_next then
+    local value = safe_call(previous.activity, t)
+    previous_next = type(value) == "number" and value > t and value or nil
+  end
+  return previous_next and math.min(next_send, previous_next) or next_send
 end

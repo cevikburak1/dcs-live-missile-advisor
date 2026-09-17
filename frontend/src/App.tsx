@@ -66,10 +66,10 @@ export default function App() {
         />
       </div>
 
-      {snapshot?.packetSeq !== undefined && (
+      {snapshot?.packetSeq != null && (
         <footer className="mt-6 text-center font-mono text-xs text-slate-600">
           pkt #{snapshot.packetSeq}
-          {snapshot.modelTime !== undefined && ` · t=${snapshot.modelTime.toFixed(1)}s`}
+          {snapshot.modelTime != null && ` · t=${snapshot.modelTime.toFixed(1)}s`}
         </footer>
       )}
     </div>
